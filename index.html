@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个体化精准养生 - AI智慧问诊</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.7.3/dist/index.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- LOGIN -->
+    <div v-if="!isLoggedIn" class="login-page">
+      <div class="login-card">
+        <div class="login-logo">
+          <div class="icon">🏥</div>
+          <h1>个体化精准养生</h1>
+          <p>AI智慧问诊 · 辨证施养</p>
+        </div>
+        <el-form class="login-form" @submit.prevent="handleLogin" :model="loginForm">
+          <el-form-item><el-input v-model="loginForm.username" placeholder="请输入用户名" size="large" prefix-icon="User" /></el-form-item>
+          <el-form-item><el-input v-model="loginForm.password" type="password" placeholder="请输入密码" size="large" prefix-icon="Lock" show-password @keyup.enter="handleLogin" /></el-form-item>
+          <el-form-item>
+            <el-input v-model="apiBase" placeholder="服务器地址" size="small" clearable>
+              <template #prefix>🌐</template>
+            </el-input>
+          </el-form-item>
+          <el-form-item><el-button class="login-btn" type="primary" @click="handleLogin" :loading="loginLoading">登 录</el-button></el-form-item>
+        </el-form>
+      </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div v-else class="app-layout">
+      <div class="sidebar" :class="{ open: sidebarOpen }">
+        <div class="sidebar-header"><h2>🀄 精准养生</h2><div class="subtitle">AI智慧问诊平台</div></div>
+        <div class="sidebar-nav">
+          <div class="nav-group-title">问诊</div>
+          <div class="nav-item" :class="{active:currentPage==='consultation'}" @click="currentPage='consultation'"><span class="icon">💬</span>AI问诊</div>
+          <div class="nav-item" :class="{active:currentPage==='history'}" @click="currentPage='history'"><span class="icon">📋</span>问诊记录</div>
+          <div class="nav-item" :class="{active:currentPage==='local-cases'}" @click="currentPage='local-cases';loadLocalCases()"><span class="icon">📁</span>本地案例</div>
+          <template v-if="currentUser.role==='super_admin'">
+            <div class="nav-group-title">知识库</div>
+            <div class="nav-item" :class="{active:currentPage==='knowledge'}" @click="currentPage='knowledge'"><span class="icon">📚</span>知识库管理</div>
+          </template>
+          <template v-if="canManageUsers">
+            <div class="nav-group-title">管理</div>
+            <div class="nav-item" :class="{active:currentPage==='users'}" @click="currentPage='users'"><span class="icon">👥</span>用户管理</div>
+          </template>
+          <template v-if="canViewAnalytics">
+            <div class="nav-group-title">分析</div>
+            <div class="nav-item" :class="{active:currentPage==='analytics'}" @click="currentPage='analytics'"><span class="icon">📊</span>数据统计</div>
+            <div class="nav-item" :class="{active:currentPage==='hot-symptoms'}" @click="currentPage='hot-symptoms'"><span class="icon">🔥</span>热门症状</div>
+          </template>
+        </div>
+        <div class="sidebar-footer">
+          <div style="display:flex;gap:8px;">
+            <div class="user-info" style="flex:1;" @click="showChangePwdDialog=true">
+              <div class="user-avatar">{{ (currentUser.real_name||currentUser.username)[0] }}</div>
+              <div class="user-meta"><div class="name">{{ currentUser.real_name||currentUser.username }}</div><div class="role">{{ roleLabels[currentUser.role] }}</div></div>
+            </div>
+            <el-button size="small" style="margin:auto;color:var(--text-light);" @click="handleLogout" title="退出登录">退出</el-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <!-- CONSULTATION -->
+        <template v-if="currentPage==='consultation'">
+          <div class="page-header"><h1>💬 AI智慧问诊</h1><p>舌象辨析 · 中医辨证 · 个体化养生方案</p></div>
+          <div class="page-body">
+            <div class="consultation-container">
+              <div class="chat-area">
+                <div class="chat-messages" ref="chatMessages">
+                  <div v-if="consultMessages.length===0" style="text-align:center;padding:60px 20px;color:var(--text-light);">
+                    <div style="font-size:48px;margin-bottom:16px;">🏥</div>
+                    <div style="font-size:16px;font-weight:500;color:var(--text-mid);">欢迎使用AI智慧问诊</div>
+                    <div style="font-size:13px;margin-top:8px;">请描述您的症状或上传舌象图片</div>
+                  </div>
+                  <div v-for="(msg,idx) in consultMessages" :key="idx" class="chat-message" :class="msg.role">
+                    <div class="chat-bubble">
+                      <template v-if="msg.role==='user'">
+                        <div v-if="msg.tonguePreview" style="margin-bottom:8px;"><img :src="msg.tonguePreview" style="max-width:120px;border-radius:8px;"/></div>
+                        <div>{{msg.content}}</div>
+                      </template>
+                      <template v-else>
+                        <div class="ai-answer" :class="{'streaming-cursor': msg.streaming}" v-html="formatAIAnswer(msg.content)"></div>
+                        <div style="margin-top:12px;text-align:right;">
+                          <el-button size="small" :type="msg.saved?'success':'primary'" @click="openSaveCaseDialog(msg)">{{msg.saved?'已保存':'💾 存为本地案例'}}</el-button>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div v-if="consultLoading" class="chat-message ai"><div class="chat-bubble">⏳ AI正在分析中...</div></div>
+                </div>
+                <div class="chat-input-area">
+                  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                    <el-select v-model="consultKB" placeholder="选择知识库" clearable style="width:200px;">
+                      <el-option v-for="kb in myKnowledgeBases" :key="kb.id" :label="kb.name" :value="kb.id"/>
+                    </el-select>
+                    <span v-if="myKnowledgeBases.length===0 && currentUser.role!=='super_admin'" style="font-size:12px;color:var(--text-light);">暂无可用知识库，请联系管理员绑定</span>
+                    <el-upload :auto-upload="false" :show-file-list="false" accept="image/*" :on-change="handleTongueImage">
+                      <el-button>📸 上传舌象</el-button>
+                    </el-upload>
+                    <div v-if="tongueImagePreview" class="tongue-upload">
+                      <img :src="tongueImagePreview" class="tongue-preview"/>
+                      <el-button size="small" type="danger" @click="tongueImageBase64='';tongueImagePreview=''">✕</el-button>
+                    </div>
+                  </div>
+                  <div class="chat-input-row">
+                    <el-input v-model="consultInput" type="textarea" :rows="3" placeholder="请描述您的症状、体质、不适等信息..." @keydown.enter.ctrl="sendConsultation"/>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:8px;">
+                    <span style="font-size:12px;color:var(--text-light);flex:1;">按 Ctrl+Enter 发送</span>
+                    <el-button type="primary" size="large" @click="sendConsultation" :loading="consultLoading" style="border-radius:12px;min-width:100px;">📤 发送</el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- HISTORY -->
+        <template v-if="currentPage==='history'">
+          <div class="page-header"><h1>📋 问诊记录</h1><p>查看历史问诊记录与辨证结果</p></div>
+          <div class="page-body">
+            <div class="data-table">
+              <el-table :data="consultations" stripe v-loading="loadingHistory">
+                <el-table-column prop="id" label="ID" width="60"/>
+                <el-table-column prop="username" label="问诊者" width="100"/>
+                <el-table-column prop="knowledge_base_name" label="知识库" width="120"/>
+                <el-table-column prop="question" label="问题" min-width="200" show-overflow-tooltip/>
+                <el-table-column label="症状" width="200"><template #default="{row}"><span v-for="s in row.symptoms" :key="s" class="symptom-tag">{{s}}</span></template></el-table-column>
+                <el-table-column label="时间" width="170"><template #default="{row}">{{formatDate(row.created_at)}}</template></el-table-column>
+                <el-table-column label="操作" width="180" fixed="right">
+                  <template #default="{row}">
+                    <el-button size="small" @click="viewConsultation(row)">查看</el-button>
+                    <el-button v-if="row.user_id===currentUser.id" size="small" type="primary" @click="saveConsultation(row.id)">💾 保存案例</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+          <el-dialog v-model="showConsultDialog" title="问诊详情" width="700px">
+            <div v-if="selectedConsultation" style="max-height:60vh;overflow-y:auto;">
+              <p style="margin-bottom:12px;"><strong>问诊者：</strong>{{selectedConsultation.user_real_name||selectedConsultation.username}}</p>
+              <p style="margin-bottom:12px;"><strong>问题：</strong></p>
+              <div style="padding:12px;background:var(--bg-warm);border-radius:12px;margin-bottom:16px;">{{selectedConsultation.question}}</div>
+              <template v-if="selectedConsultation.tongue_analysis">
+                <p><strong>👅 舌象辨析：</strong></p>
+                <div style="padding:12px;background:#FFF8E7;border-radius:12px;margin-bottom:16px;white-space:pre-wrap;">{{selectedConsultation.tongue_analysis}}</div>
+              </template>
+              <p><strong>AI回复：</strong></p>
+              <div style="padding:12px;background:var(--bg-cream);border-radius:12px;line-height:1.8;" class="ai-answer" v-html="formatAIAnswer(selectedConsultation.answer)"></div>
+              <div v-if="selectedConsultation.symptoms&&selectedConsultation.symptoms.length" style="margin-top:12px;">
+                <strong>识别症状：</strong><span v-for="s in selectedConsultation.symptoms" :key="s" class="symptom-tag" style="font-size:13px;">{{s}}</span>
+              </div>
+            </div>
+          </el-dialog>
+        </template>
+
+        <!-- LOCAL CASES -->
+        <template v-if="currentPage==='local-cases'">
+          <div class="page-header"><h1>📁 本地案例</h1><p>已保存的问诊案例，可随时查看</p></div>
+          <div class="page-body">
+            <!-- 搜索栏 -->
+            <el-card shadow="never" style="margin-bottom:20px;">
+              <el-row :gutter="12" align="middle">
+                <el-col :xs="24" :sm="12" :md="8">
+                  <el-input v-model="caseSearch" placeholder="输入姓名或电话查询" clearable @keyup.enter="loadLocalCases">
+                    <template #append>
+                      <el-button @click="loadLocalCases">查询</el-button>
+                    </template>
+                  </el-input>
+                </el-col>
+                <el-col :xs="24" :sm="12" :md="4" style="margin-top:10px;">
+                  <el-button @click="caseSearch='';loadLocalCases()">重置</el-button>
+                </el-col>
+              </el-row>
+            </el-card>
+            <!-- 案例卡片列表 -->
+            <div v-if="localCases.length===0" style="text-align:center;padding:60px;color:var(--text-light);">
+              <div style="font-size:48px;margin-bottom:16px;">📂</div>
+              <p>暂无保存的案例</p>
+            </div>
+            <div v-else v-loading="loadingLocalCases">
+              <el-row :gutter="20">
+                <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="item in localCases" :key="item.id" style="margin-bottom:20px;">
+                  <el-card shadow="hover" :body-style="{padding:'20px'}">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                      <span style="font-size:18px;font-weight:600;color:var(--primary-dark);">{{item.patient_name || '未命名'}}</span>
+                      <el-tag size="small" type="info">{{item.patient_gender || '未知'}}</el-tag>
+                    </div>
+                    <div style="color:var(--text);margin-bottom:8px;font-size:14px;">
+                      <span style="color:var(--text-light);">电话:</span> {{item.patient_phone || '-'}}
+                    </div>
+                    <div style="color:var(--text-light);font-size:14px;margin-bottom:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                      <span style="color:var(--text-light);">地址:</span> {{item.patient_address || '无地址'}}
+                    </div>
+                    <div style="color:var(--text-light);font-size:12px;margin-bottom:16px;">
+                      保存时间：{{formatDate(item.created_at)}}
+                    </div>
+                    <div style="display:flex;gap:10px;">
+                      <el-button type="primary" style="flex:1;" @click="viewLocalCase(item)">查看</el-button>
+                      <el-button type="danger" @click.stop="deleteLocalCase(item)">删除</el-button>
+                    </div>
+                  </el-card>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+        </template>
+
+        <!-- KNOWLEDGE BASE -->
+        <template v-if="currentPage==='knowledge'">
+          <!-- KB List View -->
+          <template v-if="!selectedKBDetail">
+            <div class="page-header"><h1>📚 知识库管理</h1><p>创建知识库、上传资料、AI解析入库、绑定角色</p></div>
+            <div class="page-body">
+              <div style="margin-bottom:20px;display:flex;gap:12px;">
+                <el-button type="primary" @click="showKBDialog=true;kbForm={name:'',description:'',prompt_config:'',negative_prompt:''};kbDialogTitle='新建知识库'">+ 新建知识库</el-button>
+              </div>
+              <div class="kb-cards">
+                <div v-for="kb in knowledgeBases" :key="kb.id" class="kb-card" @click="openKBDetail(kb)">
+                  <div class="kb-card-header">
+                    <div class="kb-icon">📚</div>
+                    <div class="kb-title">{{kb.name}}</div>
+                  </div>
+                  <div class="kb-card-desc">{{kb.description||'暂无描述'}}</div>
+                  <div class="kb-card-stats">
+                    <span>📄 {{kb.doc_count}} 文档</span>
+                    <span>👥 {{kb.binding_count}} 用户</span>
+                  </div>
+                  <div class="kb-card-time">创建于 {{formatDate(kb.created_at)}}</div>
+                  <div class="kb-card-actions" @click.stop>
+                    <el-button size="small" @click.stop="editKB(kb)">⚙️ 设置</el-button>
+                    <el-button size="small" type="warning" @click.stop="openBindDialog(kb)">绑定用户</el-button>
+                    <el-button size="small" type="danger" @click.stop="deleteKB(kb.id)">删除</el-button>
+                  </div>
+                </div>
+                <div v-if="knowledgeBases.length===0&&!loadingKB" class="kb-card-empty">
+                  <div style="font-size:48px;margin-bottom:12px;">📭</div>
+                  <div>暂无知识库，点击上方按钮创建</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- KB Dialog (Create/Edit) -->
+            <el-dialog v-model="showKBDialog" :title="kbDialogTitle" width="600px">
+              <el-form :model="kbForm" label-width="100px">
+                <el-form-item label="名称"><el-input v-model="kbForm.name" placeholder="例如：三心董元膏方"/></el-form-item>
+                <el-form-item label="描述"><el-input v-model="kbForm.description" type="textarea" :rows="2" placeholder="知识库用途说明"/></el-form-item>
+                <el-form-item label="人设及回复模板">
+                  <el-input v-model="kbForm.prompt_config" type="textarea" :rows="8" placeholder="填写自定义人设和回复规则，支持 {current_time} 占位符自动替换为当前时间。
+
+示例：
+你是XX品牌的中医AI助手，精通舌象辨析和中医辨证。
+当前时间：{current_time}
+【回复风格】简洁专业，使用通俗易懂的语言
+【回复格式】必须包含：问题分析、调理建议、注意事项" />
+                </el-form-item>
+                <el-form-item label="禁止回复内容">
+                  <el-input v-model="kbForm.negative_prompt" type="textarea" :rows="4" placeholder="填写禁止AI回复中出现的内容，每行一条。
+
+示例：
+不得推荐西药
+不得建议去医院做检查
+不得提及竞争对手品牌" />
+                </el-form-item>
+              </el-form>
+              <template #footer>
+                <el-button @click="showKBDialog=false">取消</el-button>
+                <el-button v-if="!kbForm.id" type="primary" @click="createKB" :loading="creatingKB">创建</el-button>
+                <el-button v-else type="primary" @click="saveKB" :loading="savingKB">保存</el-button>
+              </template>
+            </el-dialog>
+          </template>
+
+          <!-- KB Detail View -->
+          <template v-else>
+            <div class="page-header">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <el-button @click="selectedKBDetail=null" size="large">← 返回</el-button>
+                <div style="flex:1;">
+                  <h1>📚 {{selectedKBDetail.name}} <el-button size="small" @click="editKB(selectedKBDetail)">⚙️ 设置</el-button></h1>
+                  <p>{{selectedKBDetail.description||'暂无描述'}}</p>
+                </div>
+              </div>
+            </div>
+            <div class="page-body">
+              <!-- Prompt Config Preview -->
+              <div v-if="selectedKBDetail.prompt_config" class="kb-upload-area" style="margin-top:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <span style="font-weight:500;color:var(--primary-dark);">🤖 AI人设及回复模板</span>
+                  <el-button size="small" @click="editKB(selectedKBDetail)">编辑</el-button>
+                </div>
+                <el-input type="textarea" :model-value="selectedKBDetail.prompt_config" :rows="3" readonly />
+              </div>
+              <div v-else class="kb-upload-area" style="margin-top:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="color:var(--text-light);">🤖 尚未设置AI人设，将使用默认回复模板</span>
+                  <el-button size="small" @click="editKB(selectedKBDetail)">去设置</el-button>
+                </div>
+              </div>
+              <!-- Negative Prompt Preview -->
+              <div v-if="selectedKBDetail.negative_prompt" class="kb-upload-area" style="margin-top:12px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <span style="font-weight:500;color:#C0392B;">🚫 禁止回复内容</span>
+                  <el-button size="small" @click="editKB(selectedKBDetail)">编辑</el-button>
+                </div>
+                <el-input type="textarea" :model-value="selectedKBDetail.negative_prompt" :rows="3" readonly />
+              </div>
+
+              <!-- Upload Area -->
+              <div class="kb-upload-area">
+                <div style="margin-bottom:12px;font-weight:500;color:var(--primary-dark);">📤 上传资料文件</div>
+                <el-upload
+                  :action="apiBase+'/knowledge-bases/'+selectedKBDetail.id+'/documents'"
+                  :headers="authHeaders"
+                  :on-success="onDocUploadSuccess"
+                  :on-error="onDocError"
+                  :before-upload="beforeDocUpload"
+                  name="file"
+                  :show-file-list="false"
+                  multiple
+                >
+                  <el-button type="primary" size="large">选择文件上传</el-button>
+                </el-upload>
+                <div style="font-size:12px;color:var(--text-light);margin-top:8px;">
+                  支持格式：TXT、MD、CSV、JSON、PDF、Word（DOCX/DOC）、图片（JPG/PNG/GIF/BMP/WEBP） &nbsp;|&nbsp; 文件上传后自动解析入库，供AI问答使用
+                </div>
+              </div>
+
+              <!-- Documents List -->
+              <div style="margin-top:24px;">
+                <div style="font-weight:500;color:var(--primary-dark);margin-bottom:12px;">📄 已上传文档（{{kbDocuments.length}}）</div>
+                <div v-if="kbDocuments.length===0" style="text-align:center;padding:40px;color:var(--text-light);background:white;border-radius:12px;">
+                  <div style="font-size:36px;margin-bottom:8px;">📭</div>
+                  尚未上传任何文档
+                </div>
+                <div v-for="doc in kbDocuments" :key="doc.id" class="doc-item">
+                  <div class="doc-item-left">
+                    <span class="doc-icon">{{docIcon(doc.file_type)}}</span>
+                    <div class="doc-info">
+                      <div class="doc-name">{{doc.filename}}</div>
+                      <div class="doc-meta">{{doc.file_type}} · {{formatDate(doc.created_at)}}</div>
+                    </div>
+                  </div>
+                  <div class="doc-item-right">
+                    <el-tag v-if="doc.parsed" type="success" size="small">✅ 已解析</el-tag>
+                    <el-tag v-else type="info" size="small">⏳ 待解析</el-tag>
+                    <el-button size="small" @click="previewDoc(doc)">预览</el-button>
+                    <el-button size="small" type="danger" @click="deleteDoc(selectedKBDetail.id,doc.id)">删除</el-button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Document Preview Dialog -->
+              <el-dialog v-model="showDocPreview" :title="'文档预览 - '+previewingDoc?.filename" width="700px" top="5vh">
+                <div style="max-height:60vh;overflow-y:auto;">
+                  <div v-if="docPreviewLoading" style="text-align:center;padding:40px;"><el-icon class="is-loading" style="font-size:24px;"><Loading/></el-icon> 加载中...</div>
+                  <div v-else-if="docPreviewContent" style="white-space:pre-wrap;line-height:1.8;font-size:14px;background:var(--bg-cream);padding:16px;border-radius:8px;">{{docPreviewContent}}</div>
+                  <div v-else style="text-align:center;padding:40px;color:var(--text-light);">该文档无解析内容（可能是非文本格式文件）</div>
+                </div>
+              </el-dialog>
+            </div>
+          </template>
+
+          <!-- Bind Dialog -->
+          <el-dialog v-model="showBindDialog" title="绑定用户" width="500px">
+            <p style="margin-bottom:12px;color:var(--text-mid);">为知识库「{{selectedKBDetail?selectedKBDetail.name:selectedKB.name}}」绑定可访问的用户</p>
+            <el-select v-model="bindUserIds" multiple placeholder="选择用户" style="width:100%;">
+              <el-option v-for="u in allUsers" :key="u.id" :label="(u.real_name||u.username)+' ('+roleLabels[u.role]+')'" :value="u.id"/>
+            </el-select>
+            <template #footer><el-button @click="showBindDialog=false">取消</el-button><el-button type="primary" @click="bindKB" :loading="bindingKB">绑定</el-button></template>
+          </el-dialog>
+        </template>
+
+        <!-- USERS -->
+        <template v-if="currentPage==='users'">
+          <div class="page-header"><h1>👥 用户管理</h1><p>创建和管理用户账号</p></div>
+          <div class="page-body">
+            <div style="margin-bottom:20px;"><el-button type="primary" @click="showUserDialog=true;editingUser=null;userForm={username:'',password:'',role:'',real_name:'',province:'',region:'',valid_from:'',valid_until:''}">+ 创建用户</el-button></div>
+            <div class="data-table">
+              <el-table :data="users" stripe v-loading="loadingUsers">
+                <el-table-column prop="id" label="ID" width="60"/>
+                <el-table-column prop="username" label="用户名" width="120"/>
+                <el-table-column label="角色" width="110"><template #default="{row}"><span class="role-tag" :class="row.role">{{roleLabels[row.role]}}</span></template></el-table-column>
+                <el-table-column prop="real_name" label="姓名" width="90"/>
+                <el-table-column prop="province" label="省份" width="80"/>
+                <el-table-column prop="region" label="地区" width="80"/>
+                <el-table-column label="有效期" width="180"><template #default="{row}"><span v-if="row.valid_from||row.valid_until" style="font-size:12px;">{{(row.valid_from||'?').slice(0,10)}} ~ {{(row.valid_until||'?').slice(0,10)}}</span><span v-else style="color:var(--text-light);font-size:12px;">永久</span></template></el-table-column>
+                <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.is_active?'success':'danger'">{{row.is_active?'启用':'禁用'}}</el-tag></template></el-table-column>
+                <el-table-column label="操作" width="200" fixed="right">
+                  <template #default="{row}">
+                    <el-button size="small" @click="editUser(row)">编辑</el-button>
+                    <el-button size="small" type="danger" @click="toggleUser(row)" :disabled="!row.is_active">禁用</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <el-dialog v-model="showUserDialog" :title="editingUser?'编辑用户':'创建用户'" width="500px">
+              <el-form :model="userForm" label-width="80px">
+                <el-form-item label="用户名" v-if="!editingUser"><el-input v-model="userForm.username"/></el-form-item>
+                <el-form-item label="密码"><el-input v-model="userForm.password" type="password" :placeholder="editingUser?'留空不修改':'请输入密码'"/></el-form-item>
+                <el-form-item label="角色" v-if="!editingUser">
+                  <el-select v-model="userForm.role" style="width:100%;">
+                    <el-option v-for="r in creatableRoles" :key="r" :label="roleLabels[r]" :value="r"/>
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="姓名"><el-input v-model="userForm.real_name"/></el-form-item>
+                <el-form-item label="省份"><el-input v-model="userForm.province"/></el-form-item>
+                <el-form-item label="地区"><el-input v-model="userForm.region"/></el-form-item>
+                <el-form-item label="知识库">
+                  <el-select v-model="userForm.knowledge_base_ids" multiple collapse-tags collapse-tags-tooltip placeholder="选择绑定的知识库" style="width:100%;">
+                    <el-option v-for="kb in allKBs" :key="kb.id" :label="kb.name" :value="kb.id"/>
+                  </el-select>
+                  <div style="font-size:12px;color:var(--text-light);margin-top:4px;">选择后可使用对应知识库进行AI问诊</div>
+                </el-form-item>
+                <el-form-item label="有效期">
+                  <el-date-picker v-model="userForm.validDateRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width:100%;" value-format="YYYY-MM-DDTHH:mm:ss" clearable />
+                  <div style="font-size:12px;color:var(--text-light);margin-top:4px;">留空表示永久有效</div>
+                </el-form-item>
+              </el-form>
+              <template #footer><el-button @click="showUserDialog=false">取消</el-button><el-button type="primary" @click="submitUser" :loading="submittingUser">确认</el-button></template>
+            </el-dialog>
+          </div>
+        </template>
+
+        <!-- ANALYTICS -->
+        <template v-if="currentPage==='analytics'">
+          <div class="page-header"><h1>📊 数据统计</h1><p>平台运营数据概览</p></div>
+          <div class="page-body">
+            <div class="stat-cards">
+              <div class="stat-card"><div class="icon">👥</div><div class="label">用户总数</div><div class="value">{{analytics.total_users||0}}</div></div>
+              <div class="stat-card"><div class="icon">💬</div><div class="label">问诊总数</div><div class="value">{{analytics.total_consultations||0}}</div></div>
+              <div class="stat-card"><div class="icon">📚</div><div class="label">知识库</div><div class="value">{{analytics.total_knowledge_bases||0}}</div></div>
+              <div class="stat-card"><div class="icon">📄</div><div class="label">文档总数</div><div class="value">{{analytics.total_documents||0}}</div></div>
+            </div>
+            <div class="data-table" style="padding:24px;">
+              <h3 style="margin-bottom:16px;color:var(--primary-dark);">📅 近30天问诊趋势</h3>
+              <div style="display:flex;align-items:flex-end;gap:4px;height:200px;padding-top:20px;">
+                <div v-for="(d,i) in consultStats" :key="i" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                  <div style="width:100%;background:linear-gradient(180deg,var(--primary),var(--accent));border-radius:4px 4px 0 0;min-height:4px;" :style="{height: (d.count/maxStatCount*160)+'px'}"></div>
+                  <span style="font-size:10px;color:var(--text-light);">{{d.date.slice(5)}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- HOT SYMPTOMS -->
+        <template v-if="currentPage==='hot-symptoms'">
+          <div class="page-header"><h1>🔥 热门症状</h1><p>问诊中最常见的症状统计</p></div>
+          <div class="page-body">
+            <div style="background:white;border-radius:16px;padding:24px;box-shadow:0 2px 12px var(--shadow);">
+              <div v-if="hotSymptoms.length===0" style="text-align:center;padding:40px;color:var(--text-light);">暂无数据</div>
+              <div v-for="(s,i) in hotSymptoms" :key="s.symptom" class="hot-symptom-item">
+                <span style="width:28px;font-weight:700;color:var(--primary);">{{i+1}}</span>
+                <span style="width:80px;font-weight:500;">{{s.symptom}}</span>
+                <div class="hot-symptom-bar"><div class="fill" :style="{width:(s.count/maxSymptomCount*100)+'%'}"></div></div>
+                <span style="width:50px;text-align:right;color:var(--text-mid);font-size:13px;">{{s.count}}次</span>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Change Password Dialog -->
+        <el-dialog v-model="showChangePwdDialog" title="修改密码" width="400px">
+          <el-form :model="changePwdForm" label-width="80px">
+            <el-form-item label="原密码"><el-input v-model="changePwdForm.old_password" type="password" show-password/></el-form-item>
+            <el-form-item label="新密码"><el-input v-model="changePwdForm.new_password" type="password" show-password/></el-form-item>
+            <el-form-item label="确认密码"><el-input v-model="changePwdForm.confirm_password" type="password" show-password/></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="showChangePwdDialog=false">取消</el-button><el-button type="primary" @click="changePassword" :loading="changingPwd">确认修改</el-button></template>
+        </el-dialog>
+
+        <!-- Save Case Dialog -->
+        <el-dialog v-model="showSaveCaseDialog" title="保存本地案例" width="500px">
+          <el-form :model="saveCaseForm" label-width="80px">
+            <el-form-item label="姓名" required><el-input v-model="saveCaseForm.patient_name" placeholder="请输入患者姓名"/></el-form-item>
+            <el-form-item label="性别">
+              <el-radio-group v-model="saveCaseForm.patient_gender">
+                <el-radio value="男">男</el-radio>
+                <el-radio value="女">女</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="年龄"><el-input v-model="saveCaseForm.patient_age" placeholder="请输入年龄"/></el-form-item>
+            <el-form-item label="电话"><el-input v-model="saveCaseForm.patient_phone" placeholder="请输入联系电话"/></el-form-item>
+            <el-form-item label="地址"><el-input v-model="saveCaseForm.patient_address" placeholder="请输入地址"/></el-form-item>
+          </el-form>
+          <template #footer><el-button @click="showSaveCaseDialog=false">取消</el-button><el-button type="primary" @click="submitSaveCase" :loading="savingCase">保存</el-button></template>
+        </el-dialog>
+
+        <!-- View Local Case Dialog -->
+        <el-dialog v-model="showLocalCaseDialog" title="案例详情" width="700px">
+          <div v-if="selectedLocalCase" style="max-height:60vh;overflow-y:auto;">
+            <div style="background:var(--bg-warm);border-radius:12px;padding:16px;margin-bottom:16px;">
+              <div style="font-weight:600;margin-bottom:8px;">患者信息</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">
+                <div>姓名：{{selectedLocalCase.patient_name}}</div>
+                <div>性别：{{selectedLocalCase.patient_gender}}</div>
+                <div>年龄：{{selectedLocalCase.patient_age}}</div>
+                <div>电话：{{selectedLocalCase.patient_phone}}</div>
+                <div style="grid-column:span 2;">地址：{{selectedLocalCase.patient_address}}</div>
+              </div>
+            </div>
+            <div style="margin-bottom:12px;"><strong>问诊问题：</strong>{{selectedLocalCase.question}}</div>
+            <div v-if="selectedLocalCase.tongue_analysis" style="margin-bottom:12px;"><strong>舌象辨析：</strong>
+              <div style="padding:12px;background:#FFF8E7;border-radius:12px;margin-top:8px;white-space:pre-wrap;">{{selectedLocalCase.tongue_analysis}}</div>
+            </div>
+            <div style="margin-bottom:12px;"><strong>AI分析：</strong>
+              <div class="ai-answer" v-html="formatAIAnswer(selectedLocalCase.answer)"></div>
+            </div>
+            <div v-if="selectedLocalCase.symptoms&&selectedLocalCase.symptoms.length" style="margin-top:12px;">
+              <strong>相关症状：</strong><span v-for="s in selectedLocalCase.symptoms" :key="s" class="symptom-tag">{{s}}</span>
+            </div>
+          </div>
+        </el-dialog>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.7.3/dist/index.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
