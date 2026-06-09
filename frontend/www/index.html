@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>个体化精准养生 - AI智慧问诊</title>
+  <title>个体化精准养生 - 个体化精准调养</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.7.3/dist/index.css">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
@@ -16,16 +16,11 @@
         <div class="login-logo">
           <div class="icon">🏥</div>
           <h1>个体化精准养生</h1>
-          <p>AI智慧问诊 · 辨证施养</p>
+          <p>个体化精准调养 · 辨证施养</p>
         </div>
         <el-form class="login-form" @submit.prevent="handleLogin" :model="loginForm">
           <el-form-item><el-input v-model="loginForm.username" placeholder="请输入用户名" size="large" prefix-icon="User" /></el-form-item>
           <el-form-item><el-input v-model="loginForm.password" type="password" placeholder="请输入密码" size="large" prefix-icon="Lock" show-password @keyup.enter="handleLogin" /></el-form-item>
-          <el-form-item>
-            <el-input v-model="apiBase" placeholder="服务器地址" size="small" clearable>
-              <template #prefix>🌐</template>
-            </el-input>
-          </el-form-item>
           <el-form-item><el-button class="login-btn" type="primary" @click="handleLogin" :loading="loginLoading">登 录</el-button></el-form-item>
         </el-form>
       </div>
@@ -34,7 +29,7 @@
     <!-- MAIN APP -->
     <div v-else class="app-layout">
       <div class="sidebar" :class="{ open: sidebarOpen }">
-        <div class="sidebar-header"><h2>🀄 精准养生</h2><div class="subtitle">AI智慧问诊平台</div></div>
+        <div class="sidebar-header"><h2>🀄 精准养生</h2><div class="subtitle">个体化精准调养平台</div></div>
         <div class="sidebar-nav">
           <div class="nav-group-title">问诊</div>
           <div class="nav-item" :class="{active:currentPage==='consultation'}" @click="currentPage='consultation'"><span class="icon">💬</span>AI问诊</div>
@@ -68,14 +63,14 @@
       <div class="main-content">
         <!-- CONSULTATION -->
         <template v-if="currentPage==='consultation'">
-          <div class="page-header"><h1>💬 AI智慧问诊</h1><p>舌象辨析 · 中医辨证 · 个体化养生方案</p></div>
+          <div class="page-header"><h1>💬 个体化精准调养</h1><p>舌象辨析 · 中医辨证 · 个体化养生方案</p></div>
           <div class="page-body">
             <div class="consultation-container">
               <div class="chat-area">
                 <div class="chat-messages" ref="chatMessages">
                   <div v-if="consultMessages.length===0" style="text-align:center;padding:60px 20px;color:var(--text-light);">
                     <div style="font-size:48px;margin-bottom:16px;">🏥</div>
-                    <div style="font-size:16px;font-weight:500;color:var(--text-mid);">欢迎使用AI智慧问诊</div>
+                    <div style="font-size:16px;font-weight:500;color:var(--text-mid);">欢迎使用个体化精准调养</div>
                     <div style="font-size:13px;margin-top:8px;">请描述您的症状或上传舌象图片</div>
                   </div>
                   <div v-for="(msg,idx) in consultMessages" :key="idx" class="chat-message" :class="msg.role">
