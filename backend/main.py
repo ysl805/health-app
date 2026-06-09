@@ -41,6 +41,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==================== Frontend Static Files ====================
+from fastapi.staticfiles import StaticFiles
+import pathlib
+
+FRONTEND_DIR = pathlib.Path(__file__).parent.parent / "frontend"
+if FRONTEND_DIR.exists():
+    # Mount frontend at root (must be last, after all API routes)
+    pass  # Will mount after all routes are defined
+
+
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -1282,6 +1292,29 @@ async def startup():
         db.close()
 
 
+# ==================== Frontend Mount (must be last) ====================
+# Mount frontend static files at root - this must be AFTER all API routes
+from fastapi.responses import FileResponse
+
+@app.get("/", include_in_schema=False)
+async def serve_frontend_root():
+    """Serve frontend index.html for root path"""
+    index_file = FRONTEND_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file, media_type="text/html")
+    return {"error": "Frontend not found"}
+
+# Mount static files (css, js)
+static_dir = FRONTEND_DIR / "css"
+if static_dir.exists():
+    app.mount("/css", StaticFiles(directory=str(static_dir)), name="css")
+
+static_dir = FRONTEND_DIR / "js"
+if static_dir.exists():
+    app.mount("/js", StaticFiles(directory=str(static_dir)), name="js")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
