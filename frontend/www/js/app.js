@@ -3,7 +3,7 @@ const { ElMessage, ElMessageBox } = ElementPlus;
 
 const app = createApp({
   setup() {
-    const apiBase = ref(localStorage.getItem('apiBase') || 'http://192.168.21.3:8000/api');
+    const apiBase = ref('/api');
     const token = ref(localStorage.getItem('token') || '');
     const currentUser = ref(JSON.parse(localStorage.getItem('currentUser') || 'null'));
     const isLoggedIn = computed(() => !!token.value);
@@ -50,11 +50,12 @@ const app = createApp({
     }
 
     // Login
-    watch(apiBase, (v) => { if(v) localStorage.setItem('apiBase', v); });
+    // apiBase is fixed to /api (same origin)
+
 
     async function handleLogin() {
       loginLoading.value = true;
-      localStorage.setItem('apiBase', apiBase.value);
+      //
       try {
         const data = await api('/auth/login', { method: 'POST', body: JSON.stringify(loginForm.value) });
         token.value = data.access_token;
@@ -146,7 +147,7 @@ const app = createApp({
 
     function formatAIAnswer(text) {
       if (!text) return '';
-      const sectionHeaders = ['舌象辨析','综合辨证','养生方案','膏方调理','饮食调养','起居调摄','运动导引','情志调养','穴位按摩','季节养生'];
+      const sectionHeaders = ['舌象辨析','综合辨证','养生方案','药食同源方案','饮食调养','起居调摄','运动导引','情志调养','穴位按摩','季节养生'];
       let html = text
         // Remove markdown bold/italic symbols
         .replace(/\*\*(.+?)\*\*/g, '$1')
@@ -472,18 +473,13 @@ const app = createApp({
 
     function formatDate(d) {
       if (!d) return '';
-      let s = d;
+      let s = String(d).trim();
       // 确保带时区的 ISO 格式
       if (!s.endsWith('+08:00') && !s.endsWith('Z')) {
         s = s.replace(' ', 'T') + '+08:00';
       }
       const date = new Date(s);
-      if (isNaN(date.getTime())) {
-        // 尝试直接解析
-        const d2 = new Date(d.replace(' ', 'T'));
-        if (isNaN(d2.getTime())) return d;
-        return d2.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-      }
+      if (isNaN(date.getTime())) return d;
       return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
     }
 
@@ -514,7 +510,8 @@ const app = createApp({
       showChangePwdDialog, changePwdForm, changingPwd, changePassword,
       analytics, consultStats, hotSymptoms, maxStatCount, maxSymptomCount,
       formatDate,
-    };
+         loadAllKBs,
+ };
   },
 });
 

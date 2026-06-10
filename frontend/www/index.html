@@ -376,7 +376,7 @@
         <template v-if="currentPage==='users'">
           <div class="page-header"><h1>👥 用户管理</h1><p>创建和管理用户账号</p></div>
           <div class="page-body">
-            <div style="margin-bottom:20px;"><el-button type="primary" @click="showUserDialog=true;editingUser=null;userForm={username:'',password:'',role:'user',real_name:'',province:'',region:'',validDateRange:null,knowledge_base_ids:[]};if(allKBs.value.length===0)loadKBs()">+ 创建用户</el-button></div>
+            <div style="margin-bottom:20px;"><el-button type="primary" @click="showUserDialog=true;editingUser=null;userForm={username:'',password:'',role:'user',real_name:'',province:'',region:'',validDateRange:null,knowledge_base_ids:[]};if(allKBs.value.length===0)loadAllKBs()">+ 创建用户</el-button></div>
             <div class="data-table">
               <el-table :data="users" stripe v-loading="loadingUsers">
                 <el-table-column prop="id" label="ID" width="60"/>
