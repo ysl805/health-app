@@ -4,12 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>个体化精准养生 - 个体化精准调养</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.7.3/dist/index.css">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="/libs/element-plus.index.css?v=10">
+  <link href="https://fonts.loli.net/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=14">
+<script>
+window.__init_time = Date.now();
+console.log('[init] HTML loaded');
+// 检测 Vue 是否挂载
+setTimeout(function() {
+    if (typeof Vue === 'undefined') console.error('[init] Vue未加载!');
+    else console.log('[init] Vue已加载');
+    if (typeof ElementPlus === 'undefined') console.error('[init] ElementPlus未加载!');
+    else console.log('[init] ElementPlus已加载');
+    var app = document.getElementById('app');
+    if (app && app.innerHTML.indexOf('{{') >= 0) console.error('[init] Vue模板未渲染!');
+    else if (app) console.log('[init] Vue已渲染, innerHTML长度=', app.innerHTML.length);
+}, 2000);
+</script>
+
 </head>
 <body>
+<noscript style="display:block;padding:40px;text-align:center;color:red;">您的浏览器禁用了JavaScript，请启用后刷新页面。</noscript>
+
   <div id="app">
+    
     <!-- LOGIN -->
     <div v-if="!isLoggedIn" class="login-page">
       <div class="login-card">
@@ -28,8 +46,12 @@
 
     <!-- MAIN APP -->
     <div v-else class="app-layout">
-      <div class="sidebar" :class="{ open: sidebarOpen }">
-        <div class="sidebar-header"><h2>🀄 精准养生</h2><div class="subtitle">个体化精准调养平台</div></div>
+      <!-- 桌面端侧边栏 -->
+      <div class="sidebar desktop-only">
+        <div class="sidebar-header">
+          <h2>精准养生</h2>
+          <div class="subtitle">个体化精准调养平台</div>
+        </div>
         <div class="sidebar-nav">
           <div class="nav-group-title">问诊</div>
           <div class="nav-item" :class="{active:currentPage==='consultation'}" @click="currentPage='consultation'"><span class="icon">💬</span>AI问诊</div>
@@ -48,22 +70,103 @@
             <div class="nav-item" :class="{active:currentPage==='analytics'}" @click="currentPage='analytics'"><span class="icon">📊</span>数据统计</div>
             <div class="nav-item" :class="{active:currentPage==='hot-symptoms'}" @click="currentPage='hot-symptoms'"><span class="icon">🔥</span>热门症状</div>
           </template>
+          <div class="nav-group-title" style="margin-top:12px;">系统</div>
+          <div class="nav-item" @click="handleLogout"><span class="icon">🚪</span>退出登录</div>
         </div>
         <div class="sidebar-footer">
-          <div style="display:flex;gap:8px;">
-            <div class="user-info" style="flex:1;" @click="showChangePwdDialog=true">
-              <div class="user-avatar">{{ (currentUser.real_name||currentUser.username)[0] }}</div>
-              <div class="user-meta"><div class="name">{{ currentUser.real_name||currentUser.username }}</div><div class="role">{{ roleLabels[currentUser.role] }}</div></div>
+          <div class="user-info" @click="showChangePwdDialog=true">
+            <div class="user-avatar">{{ (currentUser.real_name||currentUser.username)[0] }}</div>
+            <div class="user-meta">
+              <div class="name">{{ currentUser.real_name||currentUser.username }}</div>
+              <div class="role">{{ roleLabels[currentUser.role] }}</div>
             </div>
-            <el-button size="small" style="margin:auto;color:var(--text-light);" @click="handleLogout" title="退出登录">退出</el-button>
           </div>
         </div>
+      </div>
+
+      <!-- 移动端顶部栏 -->
+      <div class="mobile-topbar">
+        <div class="topbar-title">{{pageTitle}}</div>
+        <div class="topbar-user" @click="showChangePwdDialog=true">
+          <div class="user-avatar">{{ (currentUser.real_name||currentUser.username)[0] }}</div>
+          <span class="desktop-only">{{ (currentUser.real_name||currentUser.username).slice(0,6) }}</span>
+        </div>
+      </div>
+      
+      <!-- 移动端菜单抽屉 -->
+      <div class="mobile-drawer-backdrop" :class="{show:drawerOpen}" @click="drawerOpen=false"></div>
+      <div class="mobile-drawer" :class="{open:drawerOpen}">
+        <div class="mobile-drawer-header">
+          <button class="back-btn" @click="drawerOpen=false">✕</button>
+          <div><div style="font-family:'Noto Serif SC',serif;font-size:16px;font-weight:700;color:var(--accent-light);letter-spacing:2px;">精准养生</div><div style="font-size:11px;color:rgba(255,255,255,0.4);">个体化精准调养平台</div></div>
+        </div>
+        <div class="mobile-drawer-nav">
+          <div class="nav-group-title">问诊</div>
+          <div class="nav-item" :class="{active:currentPage==='consultation'}" @click="currentPage='consultation';drawerOpen=false"><span class="icon">💬</span>AI问诊</div>
+          <div class="nav-item" :class="{active:currentPage==='history'}" @click="currentPage='history';drawerOpen=false"><span class="icon">📋</span>问诊记录</div>
+          <div class="nav-item" :class="{active:currentPage==='local-cases'}" @click="currentPage='local-cases';loadLocalCases();drawerOpen=false"><span class="icon">📁</span>本地案例</div>
+          <template v-if="currentUser.role==='super_admin'">
+            <div class="nav-group-title">知识库</div>
+            <div class="nav-item" :class="{active:currentPage==='knowledge'}" @click="currentPage='knowledge';drawerOpen=false"><span class="icon">📚</span>知识库管理</div>
+          </template>
+          <template v-if="canManageUsers">
+            <div class="nav-group-title">管理</div>
+            <div class="nav-item" :class="{active:currentPage==='users'}" @click="currentPage='users';drawerOpen=false"><span class="icon">👥</span>用户管理</div>
+          </template>
+          <template v-if="canViewAnalytics">
+            <div class="nav-group-title">分析</div>
+            <div class="nav-item" :class="{active:currentPage==='analytics'}" @click="currentPage='analytics';drawerOpen=false"><span class="icon">📊</span>数据统计</div>
+            <div class="nav-item" :class="{active:currentPage==='hot-symptoms'}" @click="currentPage='hot-symptoms';drawerOpen=false"><span class="icon">🔥</span>热门症状</div>
+          </template>
+          <div class="nav-group-title" style="margin-top:12px;">系统</div>
+          <div class="nav-item" @click="handleLogout;drawerOpen=false"><span class="icon">🚪</span>退出登录</div>
+        </div>
+        <div class="mobile-drawer-footer">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="user-avatar" style="width:40px;height:40px;font-size:18px;">{{ (currentUser.real_name||currentUser.username)[0] }}</div>
+            <div style="flex:1;"><div style="font-size:14px;font-weight:500;">{{ currentUser.real_name||currentUser.username }}</div><div style="font-size:11px;color:rgba(255,255,255,0.4);">{{ roleLabels[currentUser.role] }}</div></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 移动端菜单按钮（FAB） -->
+      <button class="mobile-menu-btn" @click="drawerOpen=true" title="菜单">☰</button>
+      
+      <!-- 移动端底部 Tab Bar -->
+      <div class="mobile-tabbar">
+        <button class="tab-item" :class="{active:currentPage==='consultation'}" @click="currentPage='consultation'">
+          <span class="tab-icon">💬</span>
+          <span>问诊</span>
+        </button>
+        <button class="tab-item" :class="{active:currentPage==='history'}" @click="currentPage='history'">
+          <span class="tab-icon">📋</span>
+          <span>记录</span>
+        </button>
+        <button class="tab-item" :class="{active:currentPage==='local-cases'}" @click="currentPage='local-cases';loadLocalCases()">
+          <span class="tab-icon">📁</span>
+          <span>案例</span>
+        </button>
+        <button class="tab-item" :class="{active:currentPage==='knowledge'&&currentUser.role==='super_admin'}" v-if="currentUser.role==='super_admin'" @click="currentPage='knowledge'">
+          <span class="tab-icon">📚</span>
+          <span>知识库</span>
+        </button>
+        <button class="tab-item" :class="{active:currentPage==='users'&&canManageUsers}" v-if="canManageUsers" @click="currentPage='users'">
+          <span class="tab-icon">👥</span>
+          <span>用户</span>
+        </button>
+        <button class="tab-item" :class="{active:currentPage==='analytics'&&canViewAnalytics}" v-if="canViewAnalytics" @click="currentPage='analytics'">
+          <span class="tab-icon">📊</span>
+          <span>统计</span>
+        </button>
       </div>
 
       <div class="main-content">
         <!-- CONSULTATION -->
         <template v-if="currentPage==='consultation'">
-          <div class="page-header"><h1>💬 个体化精准调养</h1><p>舌象辨析 · 中医辨证 · 个体化养生方案</p></div>
+          <div class="page-header" style="margin-top:0;padding-top:28px;">
+            <h1>💬 个体化精准调养</h1>
+            <p>舌象辨析 · 中医辨证 · 个体化养生方案</p>
+          </div>
           <div class="page-body">
             <div class="consultation-container">
               <div class="chat-area">
@@ -376,15 +479,14 @@
         <template v-if="currentPage==='users'">
           <div class="page-header"><h1>👥 用户管理</h1><p>创建和管理用户账号</p></div>
           <div class="page-body">
-            <div style="margin-bottom:20px;"><el-button type="primary" @click="showUserDialog=true;editingUser=null;userForm={username:'',password:'',role:'user',real_name:'',province:'',region:'',validDateRange:null,knowledge_base_ids:[]};if(allKBs.value.length===0)loadAllKBs()">+ 创建用户</el-button></div>
+            <div style="margin-bottom:20px;"><el-button type="primary" @click="showUserDialog=true;editingUser=null;userForm={username:'',password:'',role:'user',real_name:'',regions:[],phone:'',validDateRange:null,knowledge_base_ids:[]};if(allKBs.value.length===0)loadAllKBs()">+ 创建用户</el-button></div>
             <div class="data-table">
               <el-table :data="users" stripe v-loading="loadingUsers">
                 <el-table-column prop="id" label="ID" width="60"/>
                 <el-table-column prop="username" label="用户名" width="120"/>
                 <el-table-column label="角色" width="110"><template #default="{row}"><span class="role-tag" :class="row.role">{{roleLabels[row.role]}}</span></template></el-table-column>
                 <el-table-column prop="real_name" label="姓名" width="90"/>
-                <el-table-column prop="province" label="省份" width="80"/>
-                <el-table-column prop="region" label="地区" width="80"/>
+                <el-table-column label="区域" width="150"><template #default="{row}"><span v-if="row.regions" style="font-size:12px;">{{Array.isArray(row.regions)?row.regions.join(', '):row.regions}}</span><span v-else style="color:var(--text-light);font-size:12px;">-</span></template></el-table-column>
                 <el-table-column label="有效期" width="180"><template #default="{row}"><span v-if="row.valid_from||row.valid_until" style="font-size:12px;">{{(row.valid_from||'?').slice(0,10)}} ~ {{(row.valid_until||'?').slice(0,10)}}</span><span v-else style="color:var(--text-light);font-size:12px;">永久</span></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.is_active?'success':'danger'">{{row.is_active?'启用':'禁用'}}</el-tag></template></el-table-column>
                 <el-table-column label="操作" width="200" fixed="right">
@@ -406,16 +508,31 @@
                   </el-select>
                 </el-form-item>
                 <el-form-item label="姓名"><el-input v-model="userForm.real_name"/></el-form-item>
-                <el-form-item label="省份"><el-input v-model="userForm.province"/></el-form-item>
-                <el-form-item label="地区"><el-input v-model="userForm.region"/></el-form-item>
+                <el-form-item label="区域">
+                  <div v-if="!userForm.knowledge_base_ids || userForm.knowledge_base_ids.length === 0" style="color:var(--text-light);font-size:13px;">
+                    请先选择知识库
+                  </div>
+                  <div v-else-if="regionTree.length === 0" style="color:var(--text-light);font-size:13px;">
+                    暂无可选区域，<a href="javascript:void(0)" @click="currentPage='region-manage'" style="color:#409eff;">去创建区域</a>
+                  </div>
+                  <el-cascader
+                    v-else
+                    v-model="userForm.regions"
+                    :options="regionTree"
+                    :props="{checkStrictly: true, multiple: true, emitPath: false, label: 'label', value: 'value'}"
+                    placeholder="选择区域（可多选）"
+                    clearable
+                    style="width:100%;"
+                  />
+                </el-form-item>
                 <el-form-item label="知识库">
-                  <el-select v-model="userForm.knowledge_base_ids" multiple collapse-tags collapse-tags-tooltip placeholder="选择绑定的知识库" style="width:100%;">
+                  <el-select v-model="userForm.knowledge_base_ids" multiple collapse-tags collapse-tags-tooltip placeholder="选择绑定的知识库" style="width:100%;" @change="onUserKbChange">
                     <el-option v-for="kb in allKBs" :key="kb.id" :label="kb.name" :value="kb.id"/>
                   </el-select>
                   <div style="font-size:12px;color:var(--text-light);margin-top:4px;">选择后可使用对应知识库进行AI问诊</div>
                 </el-form-item>
                 <el-form-item label="有效期">
-                  <el-date-picker v-model="userForm.validDateRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width:100%;" value-format="YYYY-MM-DD HH:mm:ss" clearable />
+                  <el-date-picker v-model="userForm.validDateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width:100%;" value-format="YYYY-MM-DD" clearable />
                   <div style="font-size:12px;color:var(--text-light);margin-top:4px;">留空表示永久有效</div>
                 </el-form-item>
               </el-form>
@@ -485,6 +602,9 @@
             <el-form-item label="年龄"><el-input v-model="saveCaseForm.patient_age" placeholder="请输入年龄"/></el-form-item>
             <el-form-item label="电话"><el-input v-model="saveCaseForm.patient_phone" placeholder="请输入联系电话"/></el-form-item>
             <el-form-item label="地址"><el-input v-model="saveCaseForm.patient_address" placeholder="请输入地址"/></el-form-item>
+            <el-form-item v-if="saveCaseForm.tongue_image" label="舌象">
+              <img :src="saveCaseForm.tongue_image" style="max-width:200px;max-height:200px;border-radius:8px;object-fit:contain;"/>
+            </el-form-item>
           </el-form>
           <template #footer><el-button @click="showSaveCaseDialog=false">取消</el-button><el-button type="primary" @click="submitSaveCase" :loading="savingCase">保存</el-button></template>
         </el-dialog>
@@ -506,6 +626,9 @@
             <div v-if="selectedLocalCase.tongue_analysis" style="margin-bottom:12px;"><strong>舌象辨析：</strong>
               <div style="padding:12px;background:#FFF8E7;border-radius:12px;margin-top:8px;white-space:pre-wrap;">{{selectedLocalCase.tongue_analysis}}</div>
             </div>
+            <div v-if="selectedLocalCase.tongue_image" style="margin-bottom:12px;"><strong>舌象照片：</strong>
+              <div style="margin-top:8px;"><img :src="selectedLocalCase.tongue_image" style="max-width:300px;max-height:300px;border-radius:8px;object-fit:contain;"/></div>
+            </div>
             <div style="margin-bottom:12px;"><strong>AI分析：</strong>
               <div class="ai-answer" v-html="formatAIAnswer(selectedLocalCase.answer)"></div>
             </div>
@@ -518,9 +641,9 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.7.3/dist/index.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
-  <script src="js/app.js"></script>
+  <script src="/libs/vue.global.prod.js?v=10"></script>
+  <script src="/libs/element-plus.full.min.js?v=10"></script>
+  <script src="/libs/element-plus-icons.iife.min.js?v=10"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>
