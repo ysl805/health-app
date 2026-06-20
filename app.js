@@ -189,27 +189,6 @@ const app = Vue.createApp({
     async function saveConsultation(id) {
       try {
         const res = await api(`/consultations/${id}`);
-        // Fetch tongue image for this consultation
-        let tongueImageB64 = '';
-        try {
-          const tongueRes = await api(`/consultations/${id}/tongue-image`);
-          if (tongueRes && tongueRes.found && tongueRes.image_path) {
-            // Convert absolute path to /uploads/... URL
-            let imgUrl = tongueRes.image_path;
-            const m = imgUrl.match(/\\uploads\\(.+)$/);
-            if (m) imgUrl = '/uploads/' + m[1];
-            else if (!imgUrl.startsWith('/')) imgUrl = '/uploads/' + imgUrl.split('/').pop().split('\\').pop();
-            const imgResp = await fetch(imgUrl);
-            if (imgResp.ok) {
-              const blob = await imgResp.blob();
-              tongueImageB64 = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.readAsDataURL(blob);
-              });
-            }
-          }
-        } catch {}
         // Open save case dialog with consultation data
         saveCaseForm.value = {
           consultation_id: id,
@@ -223,7 +202,7 @@ const app = Vue.createApp({
           tongue_analysis: res.tongue_analysis || '',
           syndrome_analysis: res.syndrome_analysis || '',
           symptoms: res.symptoms || [],
-          tongue_image_base64: tongueImageB64,
+          tongue_image_base64: '',
         };
         showSaveCaseDialog.value = true;
       } catch (e) { ElMessage.error(e.message); }
