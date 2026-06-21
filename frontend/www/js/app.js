@@ -137,22 +137,11 @@ const app = Vue.createApp({
           method: 'POST',
           body: JSON.stringify({ question: q, knowledge_base_id: consultKB.value, tongue_image_base64: savedTongueBase64 || null }),
         });
-        // Typewriter effect
-        const aiMsg = { role: 'ai', content: '', id: data.id, saved: false, streaming: true };
+        // 直接显示AI回复，不使用打字机效果
+        const aiMsg = { role: 'ai', content: '', id: data.id, saved: false, streaming: false };
         consultMessages.value.push(aiMsg);
-        const msgIndex = consultMessages.value.length - 1;
         const fullText = data.reply || data.answer || '';
-        const chars = [...fullText];
-        const step = Math.max(1, Math.ceil(chars.length / 120)); // finish in ~2s
-        for (let i = 0; i < chars.length; i += step) {
-          consultMessages.value[msgIndex].content = chars.slice(0, i + step).join('');
-          await nextTick();
-          const el = document.querySelector('.chat-messages');
-          if (el) el.scrollTop = el.scrollHeight;
-          await new Promise(r => setTimeout(r, 16));
-        }
-        consultMessages.value[msgIndex].content = fullText;
-        consultMessages.value[msgIndex].streaming = false;
+        consultMessages.value[consultMessages.value.length - 1].content = fullText;
       } catch (e) {
         ElMessage.error('问诊失败: ' + e.message);
       }
